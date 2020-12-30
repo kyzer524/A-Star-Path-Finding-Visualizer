@@ -3,8 +3,8 @@ import math
 from queue import PriorityQueue
 
 # setting up the window
-width = 900
-window = pygame.display.set_mode((width, width))
+width = 950
+win = pygame.display.set_mode((width, width))
 pygame.display.set_caption("A* Path-Finding Algorithm")
 
 # colour library
@@ -21,175 +21,233 @@ grey = (128, 128, 128)
 turquoise = (64, 224, 208)
 
 
-# making a grid
-class Block:
-    def __init__(self, row, col, width, total_rows):
-        self.row = row
-        self.col = col
-        self.width = width
-        self.x = row * width
-        self.y = col * width
-        self.colour = white
-        self.neighbors = []
-        self.total_rows = total_rows
+# making of grid
+class Node:
+	def __init__(self, row, col, width, total_rows):
+		self.col = col
+		self.row = row
+		self.x = row * width
+		self.y = col * width
+		self.color = white
+		self.neighbors = []
+		self.width = width
+		self.total_rows = total_rows
 
-    # gets the positioning
-    def get_pos(self):
-        return self.row, self.col
+	# gets the positioning
+	def get_pos(self):
+		return self.row, self.col
 
-    # modules intialised to return color of block
-    def make_start(self):
-        return self.colour == yellow
+	# modules intialised to return color of block and to assign color to each block
+	def is_closed(self):
+		return self.color == red
 
-    def is_closed(self):
-        return self.colour == red
+	def is_open(self):
+		return self.color == green
 
-    def is_open(self):
-        return self.colour == green
+	def is_barrier(self):
+		return self.color == black
 
-    def is_barrier(self):
-        return self.colour == black
+	def is_start(self):
+		return self.color == orange
 
-    def is_start(self):
-        return self.colour == yellow
+	def is_end(self):
+		return self.color == turquoise
 
-    def is_end(self):
-        return self.colour == turquoise
+	def reset(self):
+		self.color = white
 
-    def reset(self):
-        self.colour == white
+	def make_start(self):
+		self.color = orange
 
-    # modules intialised to assign color to each block
-    def make_closed(self):
-        self.colour = red
+	def make_closed(self):
+		self.color = red
 
-    def make_open(self):
-        self.colour = green
+	def make_open(self):
+		self.color = green
 
-    def make_barrier(self):
-        self.colour = black
+	def make_barrier(self):
+		self.color = black
 
-    def make_end(self):
-        self.colour = turquoise
+	def make_end(self):
+		self.color = turquoise
 
-    def make_path(self):
-        self.colour = cyan
+	def make_path(self):
+		self.color = purple
 
-    # draws the rectangle window where the alogorithm runs
-    def draw(self, window):
-        pygame.draw.rect(window, self.colour, (self.x, self.y, self.width, self.width))
+	# draws the rectangle window where the alogorthim runs
+	def draw(self, win):
+		pygame.draw.rect(win, self.color, (self.x, self.y, self.width, self.width))
 
-    # solve later
-    def update_neighbors(self, grid):
-        pass
+	def update_neighbors(self, grid):
+		self.neighbors = []
+		if self.row < self.total_rows - 1 and not grid[self.row + 1][self.col].is_barrier(): # down
+			self.neighbors.append(grid[self.row + 1][self.col])
 
-    # solve later
-    def __lt__(self, other):
-        return False
+		if self.row > 0 and not grid[self.row - 1][self.col].is_barrier(): # up
+			self.neighbors.append(grid[self.row - 1][self.col])
 
+		if self.col < self.total_rows - 1 and not grid[self.row][self.col + 1].is_barrier(): # right
+			self.neighbors.append(grid[self.row][self.col + 1])
 
-# manhattan heuristic used
-# can't we just use the Pythagoras formula??
-# what about euclidean heuristic
+		if self.col > 0 and not grid[self.row][self.col - 1].is_barrier(): # left
+			self.neighbors.append(grid[self.row][self.col - 1])
+
+	def __lt__(self, other):
+		return False
+
+# manhattan heuristic used instead of euclidean distance, since it's more accurate
 def h(p1, p2):
-    p1 = x1, y1
-    p2 = x2, y2
-    return abs(x1 - x2) + abs(y1 - y2)
+	x1, y1 = p1
+	x2, y2 = p2
+	return abs(x1 - x2) + abs(y1 - y2)
 
+
+def reconstruct_path(came_from, current, draw):
+	while current in came_from:
+		current = came_from[current]
+		current.make_path()
+		draw()
+
+
+def algorithm(draw, grid, start, end):
+	count = 0
+	open_set = PriorityQueue()
+	open_set.put((0, count, start))
+	came_from = {}
+	g_score = {node: float("inf") for row in grid for node in row}
+	g_score[start] = 0
+	f_score = {node: float("inf") for row in grid for node in row}
+	f_score[start] = h(start.get_pos(), end.get_pos())
+
+	open_set_hash = {start}
+
+	while not open_set.empty():
+		for event in pygame.event.get():
+			if event.type == pygame.QUIT:
+				pygame.quit()
+
+		current = open_set.get()[2]
+		open_set_hash.remove(current)
+
+		if current == end:
+			reconstruct_path(came_from, end, draw)
+			end.make_end()
+			return True
+
+		for neighbor in current.neighbors:
+			temp_g_score = g_score[current] + 1
+
+			if temp_g_score < g_score[neighbor]:
+				came_from[neighbor] = current
+				g_score[neighbor] = temp_g_score
+				f_score[neighbor] = temp_g_score + h(neighbor.get_pos(), end.get_pos())
+				if neighbor not in open_set_hash:
+					count += 1
+					open_set.put((f_score[neighbor], count, neighbor))
+					open_set_hash.add(neighbor)
+					neighbor.make_open()
+
+		draw()
+
+		if current != start:
+			current.make_closed()
+
+	return False
 
 # pass block class into the grid
 def make_grid(rows, width):
-    grid = []
-    gap = width // rows
-    for i in range(rows):
-        grid.append([])
-        for j in range(rows):
-            block = Block(i, j, gap, rows)
-            grid[i].append(block)
+	grid = []
+	gap = width // rows
+	for i in range(rows):
+		grid.append([])
+		for j in range(rows):
+			node = Node(i, j, gap, rows)
+			grid[i].append(node)
 
-    return grid
-
-
-# grid is now made
-
+	return grid
 
 # drawing the grid lines for the grid
-def draw_grid(window, rows, width):
-    gap = width // rows
-    for i in range(rows):
-        pygame.draw.line(window, grey, (0, i * gap), (width, i * gap))
-    # no need for this ?
-    # for j in range(rows):
-    # pygame.draw.line(window, grey, (j * gap, 0), (j * gap, width))
+def draw_grid(win, rows, width):
+	gap = width // rows
+	for i in range(rows):
+		pygame.draw.line(win, grey, (0, i * gap), (width, i * gap))
+		for j in range(rows):
+			pygame.draw.line(win, grey, (j * gap, 0), (j * gap, width))
+
+# draws everything else
+def draw(win, grid, rows, width):
+	win.fill(white)
+
+	for row in grid:
+		for node in row:
+			node.draw(win)
+
+	draw_grid(win, rows, width)
+	pygame.display.update()
 
 
-# draws everthing else
-def draw(window, grid, rows, width):
-    # paint the entire window white
-    window.fill(white)
+def get_clicked_pos(pos, rows, width):
+	gap = width // rows
+	y, x = pos
 
-    # draws all of the spots on top of the grid
-    for row in grid:
-        for block in row:
-            block.draw(window)
+	row = y // gap
+	col = x // gap
 
-    draw_grid(window, rows, width)
-    pygame.display.update()
-
-
-def hget_clicled_pos(pos, rows, width):
-    gap = width // rows
-    y, xx = pos
-
-    row = y // gap
-    col = x // gap
-
-    return row, col
-
+	return row, col
 
 # core heart of the algorithm
 def main(win, width):
-    rows = 70
-    grid = make_grid(rows, width)
+	ROWS = 50
+	grid = make_grid(ROWS, width)
 
-    start = None
-    end = None
+	start = None
+	end = None
 
-    run = True
-    started = True
+	run = True
+	while run:
+		draw(win, grid, ROWS, width)
+		for event in pygame.event.get():
+			if event.type == pygame.QUIT:
+				run = False
 
-    while run:
-        draw(window, grid, rows, width)
+			if pygame.mouse.get_pressed()[0]: # left
+				pos = pygame.mouse.get_pos()
+				row, col = get_clicked_pos(pos, ROWS, width)
+				node = grid[row][col]
+				if not start and node != end:
+					start = node
+					start.make_start()
 
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                run = False
+				elif not end and node != start:
+					end = node
+					end.make_end()
 
-            if started:
-                continue
-                # prevents any misclicks while algorithm is running
+				elif node != end and node != start:
+					node.make_barrier()
 
-                if pygame.mouse.get_pressed()[0]:  # LEFT mouse button
-                    pos = pygame.mouse.get_pos()
-                    row, col = get_clikced_pos(pos, ROWS, width)
-                    block = grid[row][col]
+			elif pygame.mouse.get_pressed()[2]: # right
+				pos = pygame.mouse.get_pos()
+				row, col = get_clicked_pos(pos, ROWS, width)
+				node = grid[row][col]
+				node.reset()
+				if node == start:
+					start = None
+				elif node == end:
+					end = None
 
-                    if not start:
-                        start = block
-                        start.make_start
-                    # can combine line 175 with 176 maybe
+			if event.type == pygame.KEYDOWN:
+				if event.key == pygame.K_SPACE and start and end:
+					for row in grid:
+						for node in row:
+							node.update_neighbors(grid)
 
-                    elif not end:
-                        end = block
-                        end.make_end()
+					algorithm(lambda: draw(win, grid, ROWS, width), grid, start, end)
 
-                    elif block != end and block != start:
-                        spot.make_barrier()
+				if event.key == pygame.K_c:
+					start = None
+					end = None
+					grid = make_grid(ROWS, width)
 
+	pygame.quit()
 
-                elif pygame.mouse.get_pressed()[2]:  # RIGHT mouse button
-                    pass
-        pygame.quit()
-
-
-main(window, width)
+main(win, width)
